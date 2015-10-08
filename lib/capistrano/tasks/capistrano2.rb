@@ -41,6 +41,25 @@ Capistrano::Configuration.instance.load do
       end
     end
 
+    def next_process(idx, sidekiq_role)
+      all = all_processes(sidekiq_role)
+      all[idx + 1]
+    end
+
+    def all_processes(sidekiq_role)
+      output = []
+      sidekiq_processes = fetch(:"#{ sidekiq_role }_processes") rescue 1
+      sidekiq_processes.times do |idx|
+        if idx.zero? && sidekiq_processes <= 1
+          pid_file = fetch(:sidekiq_pid)
+        else
+          pid_file = fetch(:sidekiq_pid).gsub(/\.pid$/, "-#{idx}.pid")
+        end
+        output << {idx: idx, pid_file: pid_file, sidekiq_role: sidekiq_role}
+      end
+      output
+    end
+
     def for_each_role
       sidekiq_roles = fetch(:sidekiq_role)
 
@@ -53,6 +72,15 @@ Capistrano::Configuration.instance.load do
       sidekiq_roles.to_ary.each do |sidekiq_role|
         puts "executing on ##{ sidekiq_role }" if sidekiq_roles.size > 1
         yield(sidekiq_role)
+      end
+    end
+
+    def quiet_next_process(pid_file, idx, sidekiq_role)
+      # is there another process after this one?
+      n = next_process(idx, sidekiq_role)
+      if n.present?
+        # then warn it that shutdown is coming
+        quiet_process(n[:pid_file], n[:idx], n[:sidekiq_role])
       end
     end
 
@@ -133,6 +161,8 @@ Capistrano::Configuration.instance.load do
     task :rolling_restart, roles: lambda { fetch(:sidekiq_role) }, on_no_matching_servers: :continue do
       for_each_role do |sidekiq_role|
         for_each_process(sidekiq_role) do |pid_file, idx|
+          # warn the following process that shutdown is coming
+          quiet_next_process(pid_file, idx, sidekiq_role)
           stop_process(pid_file, idx, sidekiq_role)
           start_process(pid_file, idx, sidekiq_role)
           rolling_restart_sleep
