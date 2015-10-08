@@ -97,6 +97,11 @@ Capistrano::Configuration.instance.load do
       run "if [ -d #{current_path} ] && [ ! -f #{pid_file} ] || ! kill -0 `cat #{pid_file}` > /dev/null 2>&1; then cd #{current_path} ; #{fetch(:sidekiq_cmd)} #{args.compact.join(' ')} ; else echo 'Sidekiq is already running'; fi", pty: false, roles: sidekiq_role
     end
 
+    def rolling_restart_sleep
+      amount = fetch(:sidekiq_rolling_restart_sleep)
+      sleep(amount.to_i) if amount.present?
+    end
+
     desc 'Quiet sidekiq (stop accepting new work)'
     task :quiet, roles: lambda { fetch(:sidekiq_role) }, on_no_matching_servers: :continue do
       for_each_role do |sidekiq_role|
@@ -130,6 +135,7 @@ Capistrano::Configuration.instance.load do
         for_each_process(sidekiq_role) do |pid_file, idx|
           stop_process(pid_file, idx, sidekiq_role)
           start_process(pid_file, idx, sidekiq_role)
+          rolling_restart_sleep
         end
       end
     end
