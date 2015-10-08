@@ -77,8 +77,12 @@ Capistrano::Configuration.instance.load do
         args.push "--queue #{queue}"
       end if fetch(:sidekiq_queue)
 
-      if process_options = fetch(:sidekiq_options_per_process)
+      process_options = fetch(:sidekiq_options_per_process)
+
+      if process_options.is_a?(Array)
         args.push process_options[idx]
+      elsif process_options.is_a?(Hash)
+        args.push process_options[sidekiq_role.to_sym][idx]
       end
 
       args.push fetch(:sidekiq_options)

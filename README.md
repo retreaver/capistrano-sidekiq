@@ -70,6 +70,12 @@ and `low`:
 set :sidekiq_options_per_process, ["--queue high", "--queue default --queue low"]
 ```
 
+You can configure each process to have different options per role.
+
+```ruby
+set :sidekiq_options_per_process, {sidekiq_important: ["--queue high", "--queue calls"], sidekiq_default: ["--queue default", "--queue slow"]  }
+```
+
 ## Different number of processes per host
 
 You can configure how many processes you want to run on each host next way:
