@@ -86,7 +86,7 @@ namespace :sidekiq do
     end
   end
 
-  def start_sidekiq(pid_file, idx = 0)
+  def start_sidekiq(pid_file, idx = 0, sidekiq_role)
     args = []
     args.push "--index #{idx}"
     args.push "--pidfile #{pid_file}"
@@ -99,6 +99,14 @@ namespace :sidekiq do
     end
     args.push "--config #{fetch(:sidekiq_config)}" if fetch(:sidekiq_config)
     args.push "--concurrency #{fetch(:sidekiq_concurrency)}" if fetch(:sidekiq_concurrency)
+
+
+    if process_options.is_a?(Array)
+      args.push process_options[idx]
+    elsif process_options.is_a?(Hash)
+      args.push process_options[sidekiq_role.to_sym][idx]
+    end
+
     if process_options = fetch(:sidekiq_options_per_process)
       args.push process_options[idx]
     end
@@ -243,15 +251,15 @@ namespace :sidekiq do
     local_template_directory = fetch(:sidekiq_monit_templates_path)
 
     search_paths = [
-      "#{name}-#{role.hostname}-#{fetch(:stage)}.erb",
-      "#{name}-#{role.hostname}.erb",
-      "#{name}-#{fetch(:stage)}.erb",
-      "#{name}.erb"
+        "#{name}-#{role.hostname}-#{fetch(:stage)}.erb",
+        "#{name}-#{role.hostname}.erb",
+        "#{name}-#{fetch(:stage)}.erb",
+        "#{name}.erb"
     ].map { |filename| File.join(local_template_directory, filename) }
 
     global_search_path = File.expand_path(
-      File.join(*%w[.. .. .. generators capistrano sidekiq monit templates], "#{name}.conf.erb"),
-      __FILE__
+        File.join(*%w[.. .. .. generators capistrano sidekiq monit templates], "#{name}.conf.erb"),
+        __FILE__
     )
 
     search_paths << global_search_path
