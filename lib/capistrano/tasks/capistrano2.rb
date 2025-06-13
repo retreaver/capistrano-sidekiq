@@ -39,6 +39,25 @@ Capistrano::Configuration.instance.load do
       end
     end
 
+    def next_process(idx, sidekiq_role)
+      all = all_processes(sidekiq_role)
+      all[idx + 1]
+    end
+
+    def all_processes(sidekiq_role)
+      output = []
+      sidekiq_processes = fetch(:"#{ sidekiq_role }_processes") rescue 1
+      sidekiq_processes.times do |idx|
+        if idx.zero? && sidekiq_processes <= 1
+          pid_file = fetch(:sidekiq_pid)
+        else
+          pid_file = fetch(:sidekiq_pid).gsub(/\.pid$/, "-#{idx}.pid")
+        end
+        output << {idx: idx, pid_file: pid_file, sidekiq_role: sidekiq_role}
+      end
+      output
+    end
+
     def for_each_role
       sidekiq_roles = fetch(:sidekiq_role)
 
@@ -63,6 +82,15 @@ Capistrano::Configuration.instance.load do
       run cmd, opts
     end
 
+    def quiet_next_process(pid_file, idx, sidekiq_role)
+      # is there another process after this one?
+      n = next_process(idx, sidekiq_role)
+      if n.present?
+        # then warn it that shutdown is coming
+        quiet_process(n[:pid_file], n[:idx], n[:sidekiq_role])
+      end
+    end
+
     def quiet_process(pid_file, idx, sidekiq_role)
       run_as "if [ -d #{current_path} ] && [ -f #{pid_file} ] && kill -0 `cat #{pid_file}`> /dev/null 2>&1; then cd #{current_path} && #{fetch(:sidekiqctl_cmd)} quiet #{pid_file} ; else echo 'Sidekiq is not running'; fi"
     end
@@ -84,8 +112,12 @@ Capistrano::Configuration.instance.load do
         args.push "--queue #{queue}"
       end if fetch(:sidekiq_queue)
 
-      if process_options = fetch(:sidekiq_options_per_process)
+      process_options = fetch(:sidekiq_options_per_process)
+
+      if process_options.is_a?(Array)
         args.push process_options[idx]
+      elsif process_options.is_a?(Hash)
+        args.push process_options[sidekiq_role.to_sym][idx]
       end
 
       args.push fetch(:sidekiq_options)
@@ -98,6 +130,11 @@ Capistrano::Configuration.instance.load do
       end
 
       run_as "if [ -d #{current_path} ] && [ ! -f #{pid_file} ] || ! kill -0 `cat #{pid_file}` > /dev/null 2>&1; then cd #{current_path} ; #{fetch(:sidekiq_cmd)} #{args.compact.join(' ')} ; else echo 'Sidekiq is already running'; fi"
+    end
+
+    def rolling_restart_sleep
+      amount = fetch(:sidekiq_rolling_restart_sleep)
+      sleep(amount.to_i) if amount.present?
     end
 
     desc 'Quiet sidekiq (stop accepting new work)'
@@ -131,8 +168,11 @@ Capistrano::Configuration.instance.load do
     task :rolling_restart, roles: lambda { fetch(:sidekiq_role) }, on_no_matching_servers: :continue do
       for_each_role do |sidekiq_role|
         for_each_process(sidekiq_role) do |pid_file, idx|
+          # warn the following process that shutdown is coming
+          quiet_next_process(pid_file, idx, sidekiq_role)
           stop_process(pid_file, idx, sidekiq_role)
           start_process(pid_file, idx, sidekiq_role)
+          rolling_restart_sleep
         end
       end
     end
