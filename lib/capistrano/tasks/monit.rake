@@ -1,9 +1,10 @@
 namespace :load do
   task :defaults do
-    set :sidekiq_monit_conf_dir, -> { '/etc/monit/conf.d' }
-    set :sidekiq_monit_use_sudo, -> { true }
-    set :monit_bin, -> { '/usr/bin/monit' }
-    set :sidekiq_monit_default_hooks, -> { true }
+    set :sidekiq_monit_conf_dir, '/etc/monit/conf.d'
+    set :sidekiq_monit_use_sudo, true
+    set :monit_bin, '/usr/bin/monit'
+    set :sidekiq_monit_default_hooks, true
+    set :sidekiq_monit_templates_path, 'config/deploy/templates'
   end
 end
 
@@ -116,6 +117,16 @@ namespace :sidekiq do
       if fetch(:sidekiq_log)
         "--logfile #{fetch(:sidekiq_log)}"
       end
+    end
+
+    def sidekiq_require
+      if fetch(:sidekiq_require)
+        "--require #{fetch(:sidekiq_require)}"
+      end
+    end
+
+    def sidekiq_options_per_process
+      fetch(:sidekiq_options_per_process) || []
     end
 
     def sudo_if_needed(command)
