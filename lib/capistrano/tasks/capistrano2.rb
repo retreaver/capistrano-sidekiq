@@ -92,11 +92,11 @@ Capistrano::Configuration.instance.load do
     end
 
     def quiet_process(pid_file, idx, sidekiq_role)
-      run_as "if [ -d #{current_path} ] && [ -f #{pid_file} ] && kill -0 `cat #{pid_file}`> /dev/null 2>&1; then cd #{current_path} && #{fetch(:sidekiqctl_cmd)} quiet #{pid_file} ; else echo 'Sidekiq is not running'; fi"
+      run "if [ -d #{current_path} ] && [ -f #{pid_file} ] && kill -0 `cat #{pid_file}`> /dev/null 2>&1; then cd #{current_path} && #{fetch(:sidekiqctl_cmd)} quiet #{pid_file} ; else echo 'Sidekiq is not running'; fi", roles: sidekiq_role
     end
 
     def stop_process(pid_file, idx, sidekiq_role)
-      run_as "if [ -d #{current_path} ] && [ -f #{pid_file} ] && kill -0 `cat #{pid_file}`> /dev/null 2>&1; then cd #{current_path} && #{fetch(:sidekiqctl_cmd)} stop #{pid_file} #{fetch :sidekiq_timeout} ; else echo 'Sidekiq is not running'; fi"
+      run "if [ -d #{current_path} ] && [ -f #{pid_file} ] && kill -0 `cat #{pid_file}`> /dev/null 2>&1; then cd #{current_path} && #{fetch(:sidekiqctl_cmd)} stop #{pid_file} #{fetch :sidekiq_timeout} ; else echo 'Sidekiq is not running'; fi", roles: sidekiq_role
     end
 
     def start_process(pid_file, idx, sidekiq_role)
@@ -129,7 +129,7 @@ Capistrano::Configuration.instance.load do
         args.push '--daemon'
       end
 
-      run_as "if [ -d #{current_path} ] && [ ! -f #{pid_file} ] || ! kill -0 `cat #{pid_file}` > /dev/null 2>&1; then cd #{current_path} ; #{fetch(:sidekiq_cmd)} #{args.compact.join(' ')} ; else echo 'Sidekiq is already running'; fi"
+      run "if [ -d #{current_path} ] && [ ! -f #{pid_file} ] || ! kill -0 `cat #{pid_file}` > /dev/null 2>&1; then cd #{current_path} ; #{fetch(:sidekiq_cmd)} #{args.compact.join(' ')} ; else echo 'Sidekiq is already running'; fi", roles: sidekiq_role
     end
 
     def rolling_restart_sleep
